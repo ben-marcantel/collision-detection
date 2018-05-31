@@ -8,7 +8,11 @@ canvas.height = innerHeight
 // Variables
 const mouse = {
     x: 10,
-    y: 10
+    y: 10,
+    velocity :{
+        x: (Math.random() - 0.5)*2,
+        y: (Math.random() - 0.5)*2
+    },
 }
 
 const colors = ['#2185C5', '#7ECEFD', '#FFF6E5', '#FF7F66']
@@ -17,6 +21,10 @@ const colors = ['#2185C5', '#7ECEFD', '#FFF6E5', '#FF7F66']
 addEventListener('mousemove', event => {
     mouse.x = event.clientX
     mouse.y = event.clientY
+    mouse.velocity ={
+        x: (Math.random() - 0.5)*2,
+        y: (Math.random() - 0.5)*2
+    };
 })
 
 addEventListener('resize', () => {
@@ -27,6 +35,51 @@ addEventListener('resize', () => {
 })
 
 // Utility Functions
+function rotate(velocity, angle) {
+    const rotatedVelocities = {
+        x: velocity.x * Math.cos(angle) - velocity.y * Math.sin(angle),
+        y: velocity.x * Math.sin(angle) + velocity.y * Math.cos(angle)
+    };
+
+    return rotatedVelocities;
+}
+function resolveCollision(particle, otherParticle) {
+    const xVelocityDiff = particle.velocity.x - otherParticle.velocity.x;
+    const yVelocityDiff = particle.velocity.y - otherParticle.velocity.y;
+
+    const xDist = otherParticle.x - particle.x;
+    const yDist = otherParticle.y - particle.y;
+
+    // Prevent accidental overlap of particles
+    if (xVelocityDiff * xDist + yVelocityDiff * yDist >= 0) {
+
+        // Grab angle between the two colliding particles
+        const angle = -Math.atan2(otherParticle.y - particle.y, otherParticle.x - particle.x);
+
+        // Store mass in var for better readability in collision equation
+        const m1 = particle.mass;
+        const m2 = otherParticle.mass;
+
+        // Velocity before equation
+        const u1 = rotate(particle.velocity, angle);
+        const u2 = rotate(otherParticle.velocity, angle);
+
+        // Velocity after 1d collision equation
+        const v1 = { x: u1.x * (m1 - m2) / (m1 + m2) + u2.x * 2 * m2 / (m1 + m2), y: u1.y };
+        const v2 = { x: u2.x * (m1 - m2) / (m1 + m2) + u1.x * 2 * m2 / (m1 + m2), y: u2.y };
+
+        // Final velocity after rotating axis back to original location
+        const vFinal1 = rotate(v1, -angle);
+        const vFinal2 = rotate(v2, -angle);
+
+        // Swap particle velocities for realistic bounce effect
+        particle.velocity.x = vFinal1.x;
+        particle.velocity.y = vFinal1.y;
+
+        otherParticle.velocity.x = vFinal2.x;
+        otherParticle.velocity.y = vFinal2.y;
+    }
+}
 function randomIntFromRange(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
 }
@@ -43,19 +96,57 @@ function distance(x1, y1, x2, y2) {
 }
 
 // Objects
-function Circle(x, y, radius, color) {
+function Particle(x, y, radius, color) {
     this.x = x
     this.y = y
     this.radius = radius
-    this.color = color
-    this.update = function() {
+    this.velocity ={
+        x: (Math.random() - 0.5)*2,
+        y: (Math.random() - 0.5)*2
+    };
+    this.color = "blue";
+    this.mass = 2
+
+    this.update = (particles)=> {
         this.draw()
+
+        for (let i=0;i<particles.length; i++){
+            if(this === particles[i]) continue;
+            if ( distance(this.x, this.y, particles[i].x, particles[i].y) - this.radius*2 < 0){
+                console.log("hit");
+               resolveCollision(this, particles[i])
+            }
+            // if ( distance(this.x, this.y, mouse.x, mouse.y) - this.radius*2 < 0){
+            //     resolveCollision(this, mouse)
+            //  }
+        }
+
+
+        if(this.x - this.radius <= 0 || this.x + this.radius>= innerWidth){
+            this.velocity.x = -this.velocity.x;
+
+        } 
+        if(this.y - this.radius <= 0 || this.y + this.radius >= innerHeight){
+            this.velocity.y = -this.velocity.y;
+
+        } 
+    
+        // if (distance(mouse.x,mouse.y,this.x,this.y)<10){
+        // resolveCollision(mouse,this)
+        // this.color = 'red';
+            
+        // }
+
+        this.x += this.velocity.x;
+        this.y += this.velocity.y;
+       
+        
     }
     this.draw = function() {
         c.beginPath()
         c.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false)
-        c.fillStyle = this.color
-        c.fill()
+        c.strokeStyle = this.color
+        c.stroke()
         c.closePath()
     }
 }
@@ -64,16 +155,33 @@ function Circle(x, y, radius, color) {
 
 
 // Implementation
-let circle1;
-let circle2;
+// let particle1;
+// let particle2;
+let particles;
 function init() {
-    circle1 = new Circle (300,300,100, "black")
-    circle2 = new Circle (10,10,30, "red")
+    // particle1 = new Particle (300,300,10, "black")
+    // particle2 = new Particle (10,10,10, "red")
     
-    objects = []
+    particles = []
  
-    for (let i = 0; i < 400; i++) {
-        // objects.push();
+    for (let i = 0; i < 40; i++) {
+        let radius = Math.floor(Math.random()*20)+1;
+        let mass = radius;
+        let x = randomIntFromRange(radius,canvas.width -radius);
+        let y = randomIntFromRange(radius,canvas.height -radius);
+        const color = "blue";
+
+        if (i!== 0){
+            for (let j =0; j< particles.length; j++){
+                if ( distance(x, y, particles[j].x, particles[j].y)-radius*2 < 0){
+                    x = randomIntFromRange(radius,canvas.width -radius);
+                    y = randomIntFromRange(radius,canvas.height -radius);
+                    j= -1;
+                }
+            }
+        }
+        
+        particles.push( new Particle(x,y,radius,color,mass));
     }
 }
 
@@ -82,19 +190,25 @@ function animate() {
     requestAnimationFrame(animate)
     c.clearRect(0, 0, canvas.width, canvas.height)
 
-    // objects.forEach(object => {
-     circle1.update();
-     circle2.x= mouse.x;
-     circle2.y=mouse.y;
-     circle2.update();
+    particles.forEach(particle => {
+     particle.update(particles);   
 
-     if (distance(circle1.x,circle1.y,circle2.x,circle2.y) < circle1.radius+circle2.radius ){
-        circle1.color = 'red';
-     } else {
-         circle1.color = 'black';
-     }
-     console.log(distance(circle1.x,circle1.y,circle2.x,circle2.y))
-    // });
+
+    //  particle1.velocity = 1;
+    //  particle1.update(particles);
+    //  particle2.x= mouse.x;
+    //  particle2.y= mouse.y;
+    //  particle2.velocity.x=1
+    //  particle2.velocity.y=1     
+    //  particle2.update(particles);
+
+    //  if (distance(particle1.x,particle1.y,particle2.x,particle2.y) < particle1.radius+particle2.radius*2 ){
+    //     resolveCollision(particle1, particle2)
+    //  } else {
+    //      particle.color = 'blue';
+    //  }
+    //  console.log(distance(particle1.x,particle1.y,particle2.x,particle2.y))
+    });
 }
 
 init()
